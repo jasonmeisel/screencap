@@ -126,6 +126,7 @@ namespace screencap
             var bmp = new Bitmap(Scale(size.Width) / 2 * 2, Scale(size.Height) / 2 * 2);
             var screenPt = panel.PointToScreen(Point.Empty);
 
+            var totalWatch = System.Diagnostics.Stopwatch.StartNew();
             using (var encoder = new Accord.Video.FFMPEG.VideoFileWriter())
             {
                 encoder.Open(path, bmp.Size.Width, bmp.Size.Height, 30, Accord.Video.FFMPEG.VideoCodec.H264);
@@ -141,10 +142,10 @@ namespace screencap
                             bmp.Size,
                             CopyPixelOperation.SourceCopy);
                     }
-                    encoder.WriteVideoFrame(bmp);
+                    encoder.WriteVideoFrame(bmp, totalWatch.Elapsed);
 
                     watch = System.Diagnostics.Stopwatch.StartNew();
-                    while (watch.Elapsed.TotalSeconds < 1.0 / 30)
+                    while (watch.Elapsed.TotalSeconds < 1.0 / encoder.FrameRate)
                         yield return null;
                 } while (!m_stopRecording);
 
