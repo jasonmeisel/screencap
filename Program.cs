@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -122,7 +123,6 @@ namespace screencap
 
             // must be multiples of 2
             var size = panel.ClientRectangle.Size;
-            size.Height -= m_mainWindow.m_recordButton.Height;
             var bmp = new Bitmap(Scale(size.Width) / 2 * 2, Scale(size.Height) / 2 * 2);
             var screenPt = panel.PointToScreen(Point.Empty);
 
@@ -151,6 +151,9 @@ namespace screencap
 
                 encoder.Close();
             }
+            
+            Process.Start("explorer", $"/select,\"{path}\"");
+            Application.Exit();
         }
     }
 }
