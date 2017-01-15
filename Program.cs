@@ -111,9 +111,15 @@ namespace screencap
             if (dialog.ShowDialog() != DialogResult.OK)
                 yield break;
 
-            var watch = System.Diagnostics.Stopwatch.StartNew();
-            while (watch.ElapsedMilliseconds < 100)
-                yield return null;
+            for (int i = 3; i > 0; --i)
+            {
+                m_mainWindow.m_statusLabel.Text = $"{i}...";
+
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                while (watch.Elapsed.TotalSeconds < 1)
+                    yield return null;
+            }
+            m_mainWindow.m_statusLabel.Text = "";
 
             var path = dialog.FileName; // Path.ChangeExtension(dialog.FileName, "gif");
             var panel = m_mainWindow.m_imagePanel;
@@ -147,7 +153,7 @@ namespace screencap
                     }
                     encoder.WriteVideoFrame(bmp, totalWatch.Elapsed);
 
-                    watch = System.Diagnostics.Stopwatch.StartNew();
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
                     while (watch.Elapsed.TotalSeconds < 1.0 / encoder.FrameRate)
                         yield return null;
                 } while (!m_stopRecording);
