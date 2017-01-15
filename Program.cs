@@ -126,10 +126,13 @@ namespace screencap
             var bmp = new Bitmap(Scale(size.Width) / 2 * 2, Scale(size.Height) / 2 * 2);
             var screenPt = panel.PointToScreen(Point.Empty);
 
+            int fps = int.TryParse(m_mainWindow.m_fpsBox.Text, out fps) ? fps : 30;
+            m_mainWindow.m_fpsBox.Text = fps.ToString();
+
             var totalWatch = System.Diagnostics.Stopwatch.StartNew();
             using (var encoder = new Accord.Video.FFMPEG.VideoFileWriter())
             {
-                encoder.Open(path, bmp.Size.Width, bmp.Size.Height, 30, Accord.Video.FFMPEG.VideoCodec.H264);
+                encoder.Open(path, bmp.Size.Width, bmp.Size.Height, fps, Accord.Video.FFMPEG.VideoCodec.H264);
 
                 do
                 {
@@ -151,9 +154,16 @@ namespace screencap
 
                 encoder.Close();
             }
-            
-            Process.Start("explorer", $"/select,\"{path}\"");
-            Application.Exit();
+
+            if (m_mainWindow.m_showExplorerCheckbox.Checked)
+            {
+                Process.Start("explorer", $"/select,\"{path}\"");
+            }
+
+            if (m_mainWindow.m_closeAfterCheckbox.Checked)
+            {
+                Application.Exit();
+            }
         }
     }
 }
