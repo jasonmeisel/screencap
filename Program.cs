@@ -119,7 +119,9 @@ namespace screencap
                 while (watch.Elapsed.TotalSeconds < 1)
                     yield return null;
             }
-            m_mainWindow.m_statusLabel.Text = "";
+            m_mainWindow.m_statusLabel.Text = "Recording!";
+            var oldBackColor = m_mainWindow.m_statusLabel.BackColor;
+            m_mainWindow.m_statusLabel.BackColor = Color.Red;
 
             var path = dialog.FileName; // Path.ChangeExtension(dialog.FileName, "gif");
             var panel = m_mainWindow.m_imagePanel;
@@ -160,6 +162,9 @@ namespace screencap
 
                 encoder.Close();
             }
+
+            m_mainWindow.m_statusLabel.BackColor = oldBackColor;
+            m_mainWindow.m_statusLabel.Text = "";
 
             if (m_mainWindow.m_showExplorerCheckbox.Checked)
             {
