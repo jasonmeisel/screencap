@@ -30,7 +30,6 @@
         {
             this.m_imagePanel = new System.Windows.Forms.Panel();
             this.m_recordButton = new System.Windows.Forms.Button();
-            this.m_statusBar = new System.Windows.Forms.Label();
             this.m_imagePanel.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -38,7 +37,6 @@
             // 
             this.m_imagePanel.AutoSize = true;
             this.m_imagePanel.BackColor = System.Drawing.Color.Magenta;
-            this.m_imagePanel.Controls.Add(this.m_statusBar);
             this.m_imagePanel.Controls.Add(this.m_recordButton);
             this.m_imagePanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.m_imagePanel.Location = new System.Drawing.Point(0, 0);
@@ -56,16 +54,6 @@
             this.m_recordButton.TabIndex = 0;
             this.m_recordButton.Text = "Record";
             this.m_recordButton.UseVisualStyleBackColor = true;
-            // 
-            // m_statusBar
-            // 
-            this.m_statusBar.BackColor = System.Drawing.SystemColors.Control;
-            this.m_statusBar.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.m_statusBar.Location = new System.Drawing.Point(0, 406);
-            this.m_statusBar.Name = "m_statusBar";
-            this.m_statusBar.Size = new System.Drawing.Size(710, 20);
-            this.m_statusBar.TabIndex = 1;
-            this.m_statusBar.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // MainWindow
             // 
@@ -88,7 +76,6 @@
 
         public System.Windows.Forms.Panel m_imagePanel;
         public System.Windows.Forms.Button m_recordButton;
-        public System.Windows.Forms.Label m_statusBar;
     }
 }
 

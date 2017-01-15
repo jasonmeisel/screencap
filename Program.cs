@@ -27,8 +27,8 @@ namespace screencap
             Application.Idle += Application_Idle;
 
             m_mainWindow = new MainWindow();
+            m_mainWindow.TopMost = true;
             m_mainWindow.AutoScaleMode = AutoScaleMode.Dpi;
-            //m_mainWindow.AutoScaleDimensions = 
             m_mainWindow.m_recordButton.Click += OnRecordButtonClicked;
             Application.Run(m_mainWindow);
         }
@@ -92,9 +92,13 @@ namespace screencap
             m_routines.RemoveAll(r => !r.MoveNext());
         }
 
+        static bool m_stopRecording = true;
         private static void OnRecordButtonClicked(object sender, EventArgs e)
         {
-            StartRoutine(RecordGif());
+            m_stopRecording = !m_stopRecording;
+            ((Button) sender).Text = m_stopRecording ? "Record" : "Stop";
+            if (!m_stopRecording)
+                StartRoutine(RecordGif());
         }
 
         private static IEnumerator RecordGif()
@@ -110,26 +114,42 @@ namespace screencap
             while (watch.ElapsedMilliseconds < 100)
                 yield return null;
 
-            var path = Path.ChangeExtension(dialog.FileName, "png");
+            var path = dialog.FileName; // Path.ChangeExtension(dialog.FileName, "gif");
             var panel = m_mainWindow.m_imagePanel;
 
             var scalingFactor = GetScalingFactor();
             Func<int, int> Scale = i => (int) (i * scalingFactor);
-            var bmp = new Bitmap(Scale(panel.ClientRectangle.Size.Width), Scale(panel.ClientRectangle.Size.Height));
-            var screenPt = panel.PointToScreen(Point.Empty);
-            using (var g = Graphics.FromImage(bmp))
-            {
-                g.CopyFromScreen(
-                    Scale(screenPt.X),
-                    Scale(screenPt.Y),
-                    0, 0,
-                    bmp.Size,
-                    CopyPixelOperation.SourceCopy);
-            }
-            bmp.Save(path, ImageFormat.Png);
 
-            //panel.BackgroundImage = bmp;
-            //panel.BackgroundImageLayout = ImageLayout.Stretch;
+            // must be multiples of 2
+            var size = panel.ClientRectangle.Size;
+            size.Height -= m_mainWindow.m_recordButton.Height;
+            var bmp = new Bitmap(Scale(size.Width) / 2 * 2, Scale(size.Height) / 2 * 2);
+            var screenPt = panel.PointToScreen(Point.Empty);
+
+            using (var encoder = new Accord.Video.FFMPEG.VideoFileWriter())
+            {
+                encoder.Open(path, bmp.Size.Width, bmp.Size.Height, 30, Accord.Video.FFMPEG.VideoCodec.H264);
+
+                do
+                {
+                    using (var g = Graphics.FromImage(bmp))
+                    {
+                        g.CopyFromScreen(
+                            Scale(screenPt.X),
+                            Scale(screenPt.Y),
+                            0, 0,
+                            bmp.Size,
+                            CopyPixelOperation.SourceCopy);
+                    }
+                    encoder.WriteVideoFrame(bmp);
+
+                    watch = System.Diagnostics.Stopwatch.StartNew();
+                    while (watch.Elapsed.TotalSeconds < 1.0 / 30)
+                        yield return null;
+                } while (!m_stopRecording);
+
+                encoder.Close();
+            }
         }
     }
 }
