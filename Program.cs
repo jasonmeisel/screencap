@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -24,6 +27,9 @@ namespace screencap
             Application.Idle += Application_Idle;
 
             m_mainWindow = new MainWindow();
+            m_mainWindow.AutoScaleMode = AutoScaleMode.Dpi;
+            //m_mainWindow.AutoScaleDimensions = 
+            m_mainWindow.m_recordButton.Click += OnRecordButtonClicked;
             Application.Run(m_mainWindow);
         }
 
@@ -42,6 +48,36 @@ namespace screencap
         [SuppressUnmanagedCodeSecurity, DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern bool PeekMessage(out Message msg, IntPtr hWnd, uint messageFilterMin, uint messageFilterMax, uint flags);
 
+        // http://stackoverflow.com/questions/5977445/how-to-get-windows-display-settings
+        [DllImport("gdi32.dll")]
+        static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
+        public enum DeviceCap
+        {
+            VERTRES = 10,
+            DESKTOPVERTRES = 117,
+
+            // http://pinvoke.net/default.aspx/gdi32/GetDeviceCaps.html
+        }
+
+
+        public static float GetScalingFactor()
+        {
+            Graphics g = Graphics.FromHwnd(IntPtr.Zero);
+            IntPtr desktop = g.GetHdc();
+            int LogicalScreenHeight = GetDeviceCaps(desktop, (int) DeviceCap.VERTRES);
+            int PhysicalScreenHeight = GetDeviceCaps(desktop, (int) DeviceCap.DESKTOPVERTRES);
+
+            float ScreenScalingFactor = (float) PhysicalScreenHeight / (float) LogicalScreenHeight;
+
+            return ScreenScalingFactor; // 1.25 = 125%
+        }
+
+        static List<IEnumerator> m_routines = new List<IEnumerator>();
+        public static void StartRoutine(IEnumerator routine)
+        {
+            m_routines.Add(routine);
+        }
+
         private static void Application_Idle(object sender, EventArgs e)
         {
             Message message;
@@ -53,34 +89,47 @@ namespace screencap
 
         private static void Update()
         {
-            UpdateBitmap(m_mainWindow);
+            m_routines.RemoveAll(r => !r.MoveNext());
         }
 
-        private static void UpdateBitmap(MainWindow mainWindow)
+        private static void OnRecordButtonClicked(object sender, EventArgs e)
         {
-            var panel = mainWindow.ImagePanel;
+            StartRoutine(RecordGif());
+        }
 
-            var bmp = panel.BackgroundImage;
-            if (bmp == null)
-            {
-                bmp = panel.BackgroundImage = new Bitmap(Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height);
-            }
+        private static IEnumerator RecordGif()
+        {
+            var dialog = new SaveFileDialog();
+            dialog.DefaultExt = "mp4";
+            dialog.Filter = "Videos|*.mp4";
+            dialog.AddExtension = true;
+            if (dialog.ShowDialog() != DialogResult.OK)
+                yield break;
 
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (watch.ElapsedMilliseconds < 100)
+                yield return null;
+
+            var path = Path.ChangeExtension(dialog.FileName, "png");
+            var panel = m_mainWindow.m_imagePanel;
+
+            var scalingFactor = GetScalingFactor();
+            Func<int, int> Scale = i => (int) (i * scalingFactor);
+            var bmp = new Bitmap(Scale(panel.ClientRectangle.Size.Width), Scale(panel.ClientRectangle.Size.Height));
             var screenPt = panel.PointToScreen(Point.Empty);
-
-            m_mainWindow.AllowTransparency = true;
-            m_mainWindow.Opacity = 0.5f;
             using (var g = Graphics.FromImage(bmp))
             {
                 g.CopyFromScreen(
-                    screenPt.X,
-                    screenPt.Y,
+                    Scale(screenPt.X),
+                    Scale(screenPt.Y),
                     0, 0,
-                    panel.Bounds.Size,
+                    bmp.Size,
                     CopyPixelOperation.SourceCopy);
             }
+            bmp.Save(path, ImageFormat.Png);
 
-            panel.Invalidate();
+            //panel.BackgroundImage = bmp;
+            //panel.BackgroundImageLayout = ImageLayout.Stretch;
         }
     }
 }
