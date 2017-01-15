@@ -88,9 +88,25 @@ namespace screencap
             }
         }
 
+        static bool MoveNextRecursive(IEnumerator routine)
+        {
+            if (routine.Current is IEnumerator && MoveNextRecursive((IEnumerator) routine.Current))
+            {
+                return true;
+            }
+            return routine.MoveNext();
+        }
+
+        public static IEnumerator WaitForSeconds(double seconds)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.Elapsed.TotalSeconds < seconds)
+                yield return null;
+        }
+
         private static void Update()
         {
-            m_routines.RemoveAll(r => !r.MoveNext());
+            m_routines.RemoveAll(r => !MoveNextRecursive(r));
         }
 
         static bool m_stopRecording = true;
@@ -104,38 +120,21 @@ namespace screencap
 
         private static IEnumerator RecordGif()
         {
-            var dialog = new SaveFileDialog();
-            dialog.DefaultExt = "mp4";
-            dialog.Filter = "Videos|*.mp4";
-            dialog.AddExtension = true;
-            if (dialog.ShowDialog() != DialogResult.OK)
+            var path = RunSaveFileDialog();
+            if (path == null)
                 yield break;
 
-            for (int i = 3; i > 0; --i)
-            {
-                m_mainWindow.m_statusLabel.Text = $"{i}...";
-
-                var watch = System.Diagnostics.Stopwatch.StartNew();
-                while (watch.Elapsed.TotalSeconds < 1)
-                    yield return null;
-            }
-            m_mainWindow.m_statusLabel.Text = "Recording!";
             var oldBackColor = m_mainWindow.m_statusLabel.BackColor;
-            m_mainWindow.m_statusLabel.BackColor = Color.Red;
-
-            var path = dialog.FileName; // Path.ChangeExtension(dialog.FileName, "gif");
-            var panel = m_mainWindow.m_imagePanel;
+            yield return DoCountdown();
 
             var scalingFactor = GetScalingFactor();
             Func<int, int> Scale = i => (int) (i * scalingFactor);
 
-            // must be multiples of 2
-            var size = panel.ClientRectangle.Size;
-            var bmp = new Bitmap(Scale(size.Width) / 2 * 2, Scale(size.Height) / 2 * 2);
-            var screenPt = panel.PointToScreen(Point.Empty);
+            var fps = GetFPS();
 
-            int fps = int.TryParse(m_mainWindow.m_fpsBox.Text, out fps) ? fps : 30;
-            m_mainWindow.m_fpsBox.Text = fps.ToString();
+            var panel = m_mainWindow.m_imagePanel;
+            var bmp = CreateBitmap(panel, Scale);
+            var screenPt = panel.PointToScreen(Point.Empty);
 
             var totalWatch = System.Diagnostics.Stopwatch.StartNew();
             using (var encoder = new Accord.Video.FFMPEG.VideoFileWriter())
@@ -144,20 +143,9 @@ namespace screencap
 
                 do
                 {
-                    using (var g = Graphics.FromImage(bmp))
-                    {
-                        g.CopyFromScreen(
-                            Scale(screenPt.X),
-                            Scale(screenPt.Y),
-                            0, 0,
-                            bmp.Size,
-                            CopyPixelOperation.SourceCopy);
-                    }
+                    CopyScreenToBitmap(bmp, Scale(screenPt.X) + 1, Scale(screenPt.Y) + 1);
                     encoder.WriteVideoFrame(bmp, totalWatch.Elapsed);
-
-                    var watch = System.Diagnostics.Stopwatch.StartNew();
-                    while (watch.Elapsed.TotalSeconds < 1.0 / encoder.FrameRate)
-                        yield return null;
+                    yield return WaitForSeconds(1.0 / encoder.FrameRate);
                 } while (!m_stopRecording);
 
                 encoder.Close();
@@ -175,6 +163,55 @@ namespace screencap
             {
                 Application.Exit();
             }
+        }
+
+        private static string RunSaveFileDialog()
+        {
+            var dialog = new SaveFileDialog();
+            dialog.DefaultExt = "mp4";
+            dialog.Filter = "Videos|*.mp4";
+            dialog.AddExtension = true;
+            var dialogResult = dialog.ShowDialog();
+            var path = dialogResult == DialogResult.OK ? dialog.FileName : null;
+            return path;
+        }
+
+        private static void CopyScreenToBitmap(Bitmap bmp, int sourceX, int sourceY)
+        {
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.CopyFromScreen(sourceX, sourceY, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
+            }
+        }
+
+        private static int GetFPS()
+        {
+            int fps = int.TryParse(m_mainWindow.m_fpsBox.Text, out fps) ? fps : 30;
+            m_mainWindow.m_fpsBox.Text = fps.ToString();
+            return fps;
+        }
+
+        private static IEnumerator DoCountdown()
+        {
+            for (int i = 3; i > 0; --i)
+            {
+                m_mainWindow.m_statusLabel.Text = $"{i}...";
+                yield return WaitForSeconds(1);
+            }
+            m_mainWindow.m_statusLabel.Text = "Recording!";
+            m_mainWindow.m_statusLabel.BackColor = Color.Red;
+        }
+
+        private static Bitmap CreateBitmap(Panel panel, Func<int, int> Scale)
+        {
+            // must be multiples of 2
+            var size = panel.ClientRectangle.Size;
+            var width = Scale(size.Width);
+            width -= width % 2 + 2;
+            var height = Scale(size.Height);
+            height -= height % 2 + 2;
+            var bmp = new Bitmap(width, height);
+            return bmp;
         }
     }
 }
