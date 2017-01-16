@@ -3,12 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace screencap
@@ -135,17 +131,20 @@ namespace screencap
             var panel = m_mainWindow.m_imagePanel;
             var bmp = CreateBitmap(panel, Scale);
             var screenPt = panel.PointToScreen(Point.Empty);
+            var secsPerFrame = 1.0 / fps;
 
-            var totalWatch = System.Diagnostics.Stopwatch.StartNew();
+            var totalWatch = Stopwatch.StartNew();
             using (var encoder = new Accord.Video.FFMPEG.VideoFileWriter())
             {
                 encoder.Open(path, bmp.Size.Width, bmp.Size.Height, fps, Accord.Video.FFMPEG.VideoCodec.H264);
 
+                var thisFrameWatch = new Stopwatch();
                 do
                 {
+                    thisFrameWatch.Restart();
                     CopyScreenToBitmap(bmp, Scale(screenPt.X) + 1, Scale(screenPt.Y) + 1);
                     encoder.WriteVideoFrame(bmp, totalWatch.Elapsed);
-                    yield return WaitForSeconds(1.0 / encoder.FrameRate);
+                    yield return WaitForSeconds(secsPerFrame - thisFrameWatch.Elapsed.TotalSeconds);
                 } while (!m_stopRecording);
 
                 encoder.Close();
