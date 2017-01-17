@@ -132,26 +132,29 @@ namespace screencap
             var bmp = CreateBitmap(panel, Scale);
             var screenPt = panel.PointToScreen(Point.Empty);
             var secsPerFrame = 1.0 / fps;
-
-            var totalWatch = Stopwatch.StartNew();
+            
             using (var encoder = new Accord.Video.FFMPEG.VideoFileWriter())
             {
-                encoder.Open(path, bmp.Size.Width, bmp.Size.Height, fps, Accord.Video.FFMPEG.VideoCodec.H264);
+                encoder.Open(
+                    path, bmp.Size.Width, bmp.Size.Height,
+                    fps, Accord.Video.FFMPEG.VideoCodec.H264, (int) CalculateBitrate(fps, bmp));
 
-                var thisFrameWatch = new Stopwatch();
+                var thisFrameWatch = Stopwatch.StartNew();
                 do
                 {
-                    thisFrameWatch.Restart();
                     CopyScreenToBitmap(bmp, Scale(screenPt.X) + 1, Scale(screenPt.Y) + 1);
-                    encoder.WriteVideoFrame(bmp, totalWatch.Elapsed);
-                    yield return WaitForSeconds(secsPerFrame - thisFrameWatch.Elapsed.TotalSeconds);
+                    encoder.WriteVideoFrame(bmp);
+
+                    var timeSpentThisFrame = thisFrameWatch.Elapsed.TotalSeconds;
+                    thisFrameWatch.Restart();
+                    yield return WaitForSeconds(secsPerFrame - timeSpentThisFrame);
                 } while (!m_stopRecording);
 
                 encoder.Close();
             }
 
             m_mainWindow.m_statusLabel.BackColor = oldBackColor;
-            m_mainWindow.m_statusLabel.Text = "";
+            //m_mainWindow.m_statusLabel.Text = "";
 
             if (m_mainWindow.m_showExplorerCheckbox.Checked)
             {
@@ -162,6 +165,15 @@ namespace screencap
             {
                 Application.Exit();
             }
+        }
+
+        private static double CalculateBitrate(int fps, Bitmap bmp)
+        {
+            var bitrate = 2.05433 * Math.Log(0.0000181223 * bmp.Size.Width * bmp.Size.Height); // guess a good bitrate
+            bitrate *= 1024 * 1024; // mb -> b
+            bitrate *= 0.721348 * Math.Log(fps / 7.5); // adjust for framerate
+            bitrate *= 2; // double for good measure :P
+            return bitrate;
         }
 
         private static string RunSaveFileDialog()
@@ -177,10 +189,8 @@ namespace screencap
 
         private static void CopyScreenToBitmap(Bitmap bmp, int sourceX, int sourceY)
         {
-            using (var g = Graphics.FromImage(bmp))
-            {
-                g.CopyFromScreen(sourceX, sourceY, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
-            }
+            using (var graphics = Graphics.FromImage(bmp))
+                graphics.CopyFromScreen(sourceX, sourceY, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
         }
 
         private static int GetFPS()
@@ -209,8 +219,7 @@ namespace screencap
             width -= width % 2 + 2;
             var height = Scale(size.Height);
             height -= height % 2 + 2;
-            var bmp = new Bitmap(width, height);
-            return bmp;
+            return new Bitmap(width, height);
         }
     }
 }
